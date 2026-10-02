@@ -45,14 +45,8 @@ tr.lead{cursor:pointer}tr.lead:hover{background:#fafcfc}.pill{display:inline-blo
 (function(){
 "use strict";
 var KEY="lead-engine-v1";
-var STARTER=[
-{id:"734-bucher",address:"734 Bucher Ave",city:"Santa Clara",owner:"",value:1950000,dom:0,years:40,equity:0,app:1150,units:1,status:"Researching",signals:{},notes:"Long ownership candidate. Verify current ownership, equity, and recent listing/permit activity."},
-{id:"738-bucher",address:"738 Bucher Ave",city:"Santa Clara",owner:"",value:1850000,dom:0,years:25,equity:0,app:300,units:1,status:"Researching",signals:{},notes:"Long ownership candidate. Verify current owner, mortgage/equity, and listing history."},
-{id:"739-bucher",address:"739 Bucher Ave",city:"Santa Clara",owner:"",value:1880000,dom:0,years:26,equity:0,app:255,units:1,status:"Researching",signals:{},notes:"Long-term owner/appreciation candidate. Verify current owner and financing."},
-{id:"745-bucher",address:"745 Bucher Ave",city:"Santa Clara",owner:"",value:1970000,dom:0,years:29,equity:0,app:565,units:1,status:"Researching",signals:{},notes:"Long ownership and appreciation candidate. Verify ownership and recent activity."},
-{id:"729-bucher",address:"729 Bucher Ave",city:"Santa Clara",owner:"",value:2190000,dom:0,years:0,equity:0,app:0,units:1,status:"Researching",signals:{remodel:true},notes:"Rebuild/remodel research candidate. Verify ownership tenure and permit history."}
-];
-var leads;try{var s=localStorage.getItem(KEY);leads=s?JSON.parse(s):STARTER.slice();if(!Array.isArray(leads))leads=STARTER.slice()}catch(e){leads=STARTER.slice()}
+var STARTER=[];
+var leads;try{var s=localStorage.getItem(KEY);leads=s?JSON.parse(s):[];if(!Array.isArray(leads))leads=[]}catch(e){leads=[]}
 function $(id){return document.getElementById(id)} function n(v){v=Number(v);return isFinite(v)?v:0}
 function saveLocal(){localStorage.setItem(KEY,JSON.stringify(leads))}
 function score(x){var s=0,g=x.signals||{};if(g.preforeclosure)s+=30;if(g.expired)s+=25;if(g.probate)s+=22;if(n(x.years)>=15)s+=15;if(n(x.equity)>=60)s+=15;if(n(x.dom)>=90)s+=15;else if(n(x.dom)>=60)s+=8;if(n(x.app)>=100)s+=12;if(n(x.units)>=2&&n(x.units)<=4)s+=12;if(g.remodel)s+=10;if(g.absentee)s+=10;return Math.min(100,s)}
