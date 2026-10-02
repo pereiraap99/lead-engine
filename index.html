@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Lead Engine</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#f5f7f7;--card:#fff;--ink:#17211d;--muted:#67726d;--line:#dfe5e2;--accent:#24584d}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:16px 20px;background:#fff;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+h1{font-size:20px;margin:0}.sub{font-size:12px;color:var(--muted);margin-top:3px}.wrap{max-width:1500px;margin:auto;padding:14px}
+button,input,select,textarea{font:inherit}button{border:0;border-radius:8px;padding:9px 12px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
+button.alt{background:#eef3f1;color:#26342f;border:1px solid #d4ddda}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+input,select,textarea{width:100%;border:1px solid #cbd4d0;border-radius:8px;padding:9px;background:#fff}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}.card,.panel{background:#fff;border:1px solid var(--line);border-radius:12px}
+.card{padding:12px}.num{font-size:24px;font-weight:800}.lbl{font-size:11px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1.15fr;gap:12px}.panel h2{font-size:14px;margin:0;padding:11px 13px;border-bottom:1px solid var(--line)}
+#map{height:560px;border-radius:0 0 12px 12px}.tablewrap{max-height:560px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{position:sticky;top:0;background:#fafbfb;font-size:10px;color:var(--muted);text-transform:uppercase}
+tr.lead{cursor:pointer}tr.lead:hover{background:#fafcfc}.pill{display:inline-block;font-size:10px;padding:2px 6px;margin:1px 2px 1px 0;background:#eef2f4;border-radius:999px}
+.editor{display:none;margin-bottom:12px}.editor.on{display:block}.editorBody{padding:14px}.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.full{grid-column:1/-1}
+.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.checks label{font-size:12px}.checks input{width:auto}.mini{font-size:11px;color:var(--muted)}
+@media(max-width:950px){.filters{grid-template-columns:1fr 1fr}.cards{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.form{grid-template-columns:1fr}.full{grid-column:auto}}
+</style>
+</head><body>
+<header><div><h1>Santa Clara Lead Engine</h1><div class="sub">Hosted app · lead data saves automatically in this browser</div></div>
+<div class="row"><button id="add">Add lead</button><button id="csv" class="alt">Export CSV</button><button id="backup" class="alt">Backup JSON</button><button id="restore" class="alt">Restore JSON</button><input id="restoreFile" type="file" accept=".json" hidden></div></header>
+<div class="wrap">
+<section id="editor" class="panel editor"><h2 id="editTitle">Lead</h2><div class="editorBody"><input id="leadId" type="hidden"><div class="form">
+<label>Address<input id="address"></label><label>City<input id="city" value="Santa Clara"></label><label>Owner<input id="owner"></label><label>Value / prior ask<input id="value" type="number"></label>
+<label>DOM<input id="dom" type="number"></label><label>Years owned<input id="years" type="number"></label><label>Equity %<input id="equity" type="number"></label><label>Appreciation %<input id="app" type="number"></label>
+<label>Units<input id="units" type="number" min="1" max="4" value="1"></label><label>Status<select id="status"><option>New</option><option>Researching</option><option>Contacted</option><option>Follow-up</option><option>Report mailed</option><option>Appointment</option><option>Not a lead</option></select></label>
+<div class="full"><div class="mini"><b>Motivation signals</b></div><div class="checks"><label><input id="expired" type="checkbox"> Expired/withdrawn</label><label><input id="preforeclosure" type="checkbox"> Pre-foreclosure/NOD</label><label><input id="probate" type="checkbox"> Probate/inherited</label><label><input id="remodel" type="checkbox"> Remodel/rebuild</label><label><input id="absentee" type="checkbox"> Absentee</label></div></div>
+<label class="full">Notes<textarea id="notes" rows="4"></textarea></label>
+<div class="full row"><button id="save" type="button">Save</button><button id="showMap" type="button" class="alt">Show on map</button><button id="delete" type="button" class="alt">Delete</button><button id="cancel" type="button" class="alt">Cancel</button></div>
+</div></div></section>
+<div class="filters"><input id="search" placeholder="Search address or owner"><input id="cityFilter" value="Santa Clara"><input id="min" type="number" value="1000000"><input id="max" type="number" value="4000000"><select id="signalFilter"><option value="">All motivation</option><option value="long">Long ownership</option><option value="expired">Expired</option><option value="preforeclosure">Pre-foreclosure</option><option value="probate">Probate</option><option value="remodel">Remodel</option><option value="absentee">Absentee</option><option value="highdom">High DOM</option><option value="multifamily">2–4 units</option></select></div>
+<div class="cards"><div class="card"><div id="total" class="num">0</div><div class="lbl">Visible leads</div></div><div class="card"><div id="hot" class="num">0</div><div class="lbl">Hot (70+)</div></div><div class="card"><div id="research" class="num">0</div><div class="lbl">New / researching</div></div><div class="card"><div id="reports" class="num">0</div><div class="lbl">Report candidates</div></div></div>
+<div class="grid"><section class="panel"><h2>Map</h2><div id="map"></div></section><section class="panel"><h2>Ranked leads</h2><div class="tablewrap"><table><thead><tr><th>Score</th><th>Property</th><th>Why</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div></section></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+"use strict";
+var KEY="lead-engine-v1";
+var STARTER=[
+{id:"734-bucher",address:"734 Bucher Ave",city:"Santa Clara",owner:"",value:1950000,dom:0,years:40,equity:0,app:1150,units:1,status:"Researching",signals:{},notes:"Long ownership candidate. Verify current ownership, equity, and recent listing/permit activity."},
+{id:"738-bucher",address:"738 Bucher Ave",city:"Santa Clara",owner:"",value:1850000,dom:0,years:25,equity:0,app:300,units:1,status:"Researching",signals:{},notes:"Long ownership candidate. Verify current owner, mortgage/equity, and listing history."},
+{id:"739-bucher",address:"739 Bucher Ave",city:"Santa Clara",owner:"",value:1880000,dom:0,years:26,equity:0,app:255,units:1,status:"Researching",signals:{},notes:"Long-term owner/appreciation candidate. Verify current owner and financing."},
+{id:"745-bucher",address:"745 Bucher Ave",city:"Santa Clara",owner:"",value:1970000,dom:0,years:29,equity:0,app:565,units:1,status:"Researching",signals:{},notes:"Long ownership and appreciation candidate. Verify ownership and recent activity."},
+{id:"729-bucher",address:"729 Bucher Ave",city:"Santa Clara",owner:"",value:2190000,dom:0,years:0,equity:0,app:0,units:1,status:"Researching",signals:{remodel:true},notes:"Rebuild/remodel research candidate. Verify ownership tenure and permit history."}
+];
+var leads;try{var s=localStorage.getItem(KEY);leads=s?JSON.parse(s):STARTER.slice();if(!Array.isArray(leads))leads=STARTER.slice()}catch(e){leads=STARTER.slice()}
+function $(id){return document.getElementById(id)} function n(v){v=Number(v);return isFinite(v)?v:0}
+function saveLocal(){localStorage.setItem(KEY,JSON.stringify(leads))}
+function score(x){var s=0,g=x.signals||{};if(g.preforeclosure)s+=30;if(g.expired)s+=25;if(g.probate)s+=22;if(n(x.years)>=15)s+=15;if(n(x.equity)>=60)s+=15;if(n(x.dom)>=90)s+=15;else if(n(x.dom)>=60)s+=8;if(n(x.app)>=100)s+=12;if(n(x.units)>=2&&n(x.units)<=4)s+=12;if(g.remodel)s+=10;if(g.absentee)s+=10;return Math.min(100,s)}
+function why(x){var a=[],g=x.signals||{};if(g.preforeclosure)a.push("NOD");if(g.expired)a.push("Expired");if(g.probate)a.push("Probate");if(n(x.years)>=15)a.push(n(x.years)+" yrs owned");if(n(x.equity)>=60)a.push(n(x.equity)+"% equity");if(n(x.dom)>=60)a.push(n(x.dom)+" DOM");if(n(x.app)>=100)a.push("High appreciation");if(n(x.units)>=2)a.push(n(x.units)+" units");if(g.remodel)a.push("Remodel");if(g.absentee)a.push("Absentee");return a}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+var map=L.map("map").setView([37.3541,-121.9552],15);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);var markers=[];
+function clearMarkers(){markers.forEach(function(m){map.removeLayer(m)});markers=[]}
+async function geocode(x,zoom){try{var q=encodeURIComponent(x.address+", "+x.city+", CA");var r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+q,{headers:{"Accept":"application/json"}});var d=await r.json();if(!d.length)return null;var lat=Number(d[0].lat),lon=Number(d[0].lon);if(zoom)map.setView([lat,lon],17);return [lat,lon]}catch(e){return null}}
+async function refreshMarkers(list){clearMarkers();for(var i=0;i<list.length;i++){var x=list[i];if(x.lat&&x.lng){var m=L.marker([x.lat,x.lng]).addTo(map).bindPopup("<b>"+esc(x.address)+"</b><br>Score "+score(x));markers.push(m)}}}
+function filtered(){var q=$("search").value.toLowerCase().trim(),city=$("cityFilter").value.toLowerCase().trim(),min=n($("min").value),max=n($("max").value),sf=$("signalFilter").value;return leads.filter(function(x){if(q&&((x.address+" "+(x.owner||"")).toLowerCase().indexOf(q)<0))return false;if(city&&(x.city||"").toLowerCase()!==city)return false;if(min&&n(x.value)<min)return false;if(max&&n(x.value)>max)return false;var g=x.signals||{};if(sf==="long"&&n(x.years)<15)return false;if(sf==="expired"&&!g.expired)return false;if(sf==="preforeclosure"&&!g.preforeclosure)return false;if(sf==="probate"&&!g.probate)return false;if(sf==="remodel"&&!g.remodel)return false;if(sf==="absentee"&&!g.absentee)return false;if(sf==="highdom"&&n(x.dom)<90)return false;if(sf==="multifamily"&&!(n(x.units)>=2&&n(x.units)<=4))return false;return true}).sort(function(a,b){return score(b)-score(a)})}
+function render(){var list=filtered();$("total").textContent=list.length;$("hot").textContent=list.filter(function(x){return score(x)>=70}).length;$("research").textContent=list.filter(function(x){return x.status==="New"||x.status==="Researching"}).length;$("reports").textContent=list.filter(function(x){return score(x)>=50&&x.status!=="Not a lead"}).length;var tb=$("rows");tb.innerHTML="";list.forEach(function(x){var tr=document.createElement("tr");tr.className="lead";var rs=why(x);tr.innerHTML="<td><b>"+score(x)+"</b></td><td><b>"+esc(x.address)+"</b><div class='mini'>"+esc(x.city)+" · $"+n(x.value).toLocaleString()+"</div></td><td>"+(rs.length?rs.map(function(v){return "<span class='pill'>"+esc(v)+"</span>"}).join(""):"<span class='mini'>Needs research</span>")+"</td><td>"+esc(x.status)+"</td>";tr.onclick=function(){openEditor(x.id)};tb.appendChild(tr)});refreshMarkers(list)}
+function openEditor(id){var x=leads.find(function(z){return z.id===id})||{id:"lead-"+Date.now(),address:"",city:"Santa Clara",owner:"",value:0,dom:0,years:0,equity:0,app:0,units:1,status:"New",signals:{},notes:""};$("leadId").value=x.id;$("address").value=x.address;$("city").value=x.city;$("owner").value=x.owner||"";$("value").value=x.value||"";$("dom").value=x.dom||"";$("years").value=x.years||"";$("equity").value=x.equity||"";$("app").value=x.app||"";$("units").value=x.units||1;$("status").value=x.status||"New";$("notes").value=x.notes||"";["expired","preforeclosure","probate","remodel","absentee"].forEach(function(k){$(k).checked=!!((x.signals||{})[k])});$("delete").style.visibility=leads.some(function(z){return z.id===x.id})?"visible":"hidden";$("editor").className="panel editor on";window.scrollTo({top:0,behavior:"smooth"})}
+function closeEditor(){$("editor").className="panel editor"}
+$("add").onclick=function(){openEditor(null)};$("cancel").onclick=closeEditor;
+$("save").onclick=function(){if(!$("address").value.trim()){alert("Address required");return}var id=$("leadId").value,x={id:id,address:$("address").value.trim(),city:$("city").value.trim()||"Santa Clara",owner:$("owner").value.trim(),value:n($("value").value),dom:n($("dom").value),years:n($("years").value),equity:n($("equity").value),app:n($("app").value),units:n($("units").value)||1,status:$("status").value,notes:$("notes").value.trim(),signals:{expired:$("expired").checked,preforeclosure:$("preforeclosure").checked,probate:$("probate").checked,remodel:$("remodel").checked,absentee:$("absentee").checked}};var i=leads.findIndex(function(z){return z.id===id});if(i>=0)leads[i]=x;else leads.push(x);saveLocal();closeEditor();render()};
+$("delete").onclick=function(){var id=$("leadId").value;if(confirm("Delete this lead?")){leads=leads.filter(function(x){return x.id!==id});saveLocal();closeEditor();render()}};
+$("showMap").onclick=async function(){var x={address:$("address").value.trim(),city:$("city").value.trim()||"Santa Clara"};var ll=await geocode(x,true);if(!ll)alert("Could not locate this address.");else{var id=$("leadId").value,i=leads.findIndex(function(z){return z.id===id});if(i>=0){leads[i].lat=ll[0];leads[i].lng=ll[1];saveLocal();render()}closeEditor()}};
+function dl(name,type,text){var b=new Blob([text],{type:type}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},1000)}
+$("csv").onclick=function(){var h=["Score","Address","City","Owner","Value","DOM","Years Owned","Equity %","Appreciation %","Units","Status","Notes"],rows=[h].concat(leads.map(function(x){return [score(x),x.address,x.city,x.owner,x.value,x.dom,x.years,x.equity,x.app,x.units,x.status,x.notes]}));var csv="\ufeff"+rows.map(function(r){return r.map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(",")}).join("\r\n");dl("lead-engine.csv","text/csv;charset=utf-8",csv)};
+$("backup").onclick=function(){dl("lead-engine-backup.json","application/json",JSON.stringify({leads:leads},null,2))};$("restore").onclick=function(){$("restoreFile").click()};$("restoreFile").onchange=function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){try{var d=JSON.parse(rd.result);if(!Array.isArray(d.leads))throw 0;leads=d.leads;saveLocal();render();alert("Restored")}catch(_){alert("Invalid backup")}};rd.readAsText(f)};
+["search","cityFilter","min","max","signalFilter"].forEach(function(id){$(id).oninput=render;$(id).onchange=render});render();
+})();
+</script></body></html>
