@@ -57,6 +57,7 @@ tr.distressed-row{background:#fff9f9}tr.distressed-row:hover{background:#fff3f3}
 <label>Equity %<input id="equity" type="number"></label><label>Appreciation %<input id="appreciation" type="number"></label>
 <label>Units<input id="units" type="number" min="1" max="4" value="1"></label>
 <label>Lead type<select id="leadType"><option>Property</option><option>Distressed</option></select></label>
+<label>Distress reason<select id="distressReason"><option value="">—</option><option>Pre-foreclosure / NOD</option><option>Vacant / abandoned</option><option>Probate / inherited</option><option>Tax delinquency</option><option>Code / condition issues</option><option>Failed listing</option><option>Other</option></select></label>
 <label>Status<select id="leadStatus"><option>New</option><option>Researching</option><option>Contacted</option><option>Follow-up</option><option>Report mailed</option><option>Appointment</option><option>Not a lead</option></select></label>
 <div class="full"><div class="small"><b>Motivation signals</b></div><div class="checks">
 <label><input id="expired" type="checkbox"> Expired/withdrawn</label>
@@ -160,7 +161,7 @@ function render(){
   const type=(x.lead_type||"Property");
   tr.className="lead"+(type==="Distressed"?" distressed-row":"");
   const rs=why(x);
-  const badge="<span class='badge "+(type==="Distressed"?"distressed":"property")+"'>"+esc(type)+"</span>";
+  const badge="<span class='badge "+(type==="Distressed"?"distressed":"property")+"'>"+esc(type)+(type==="Distressed"&&x.distress_reason?" · "+esc(x.distress_reason):"")+"</span>";
   tr.innerHTML="<td><b>"+score(x)+"</b></td><td>"+badge+"<br><b>"+esc(x.address)+"</b><div class='small'>"+esc(x.city)+" · $"+n(x.estimated_value).toLocaleString()+(x.owner_name?" · "+esc(x.owner_name):"")+"</div></td><td>"+(rs.length?rs.map(v=>"<span class='pill'>"+esc(v)+"</span>").join(""):"<span class='small'>Needs research</span>")+"</td><td>"+esc(x.status)+"</td>";
   tr.onclick=()=>openEditor(x.id);tb.appendChild(tr)
  });
@@ -171,7 +172,7 @@ async function load(){
 }
 function openEditor(id){
  const x=leads.find(z=>z.id===id)||{id:"",address:"",city:"Santa Clara",owner_name:"",estimated_value:0,dom:0,years_owned:0,equity_pct:0,appreciation_pct:0,units:1,lead_type:"Property",status:"New",notes:""};
- $("leadId").value=x.id||"";$("address").value=x.address;$("city").value=x.city;$("owner").value=x.owner_name||"";$("value").value=x.estimated_value||"";$("dom").value=x.dom||"";$("years").value=x.years_owned||"";$("equity").value=x.equity_pct||"";$("appreciation").value=x.appreciation_pct||"";$("units").value=x.units||1;$("leadType").value=x.lead_type||"Property";$("leadStatus").value=x.status||"New";$("notes").value=x.notes||"";
+ $("leadId").value=x.id||"";$("address").value=x.address;$("city").value=x.city;$("owner").value=x.owner_name||"";$("value").value=x.estimated_value||"";$("dom").value=x.dom||"";$("years").value=x.years_owned||"";$("equity").value=x.equity_pct||"";$("appreciation").value=x.appreciation_pct||"";$("units").value=x.units||1;$("leadType").value=x.lead_type||"Property";$("distressReason").value=x.distress_reason||"";$("leadStatus").value=x.status||"New";$("notes").value=x.notes||"";
  ["expired","preforeclosure","probate","remodel","absentee"].forEach(k=>$(k).checked=!!x[k]);
  $("delete").style.visibility=x.id?"visible":"hidden";$("editor").className="panel editor on";window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -186,7 +187,7 @@ $("lock").onclick=()=>{localStorage.removeItem(KEY_STORE);location.reload()};
 $("add").onclick=()=>openEditor(null);$("cancel").onclick=closeEditor;
 $("save").onclick=async()=>{
  if(!$("address").value.trim()){alert("Address required");return}
- const lead={id:$("leadId").value||undefined,address:$("address").value.trim(),city:$("city").value.trim()||"Santa Clara",owner_name:$("owner").value.trim(),estimated_value:n($("value").value),dom:n($("dom").value),years_owned:n($("years").value),equity_pct:n($("equity").value),appreciation_pct:n($("appreciation").value),units:n($("units").value)||1,lead_type:$("leadType").value,status:$("leadStatus").value,expired:$("expired").checked,preforeclosure:$("preforeclosure").checked,probate:$("probate").checked,remodel:$("remodel").checked,absentee:$("absentee").checked,notes:$("notes").value.trim()};
+ const lead={id:$("leadId").value||undefined,address:$("address").value.trim(),city:$("city").value.trim()||"Santa Clara",owner_name:$("owner").value.trim(),estimated_value:n($("value").value),dom:n($("dom").value),years_owned:n($("years").value),equity_pct:n($("equity").value),appreciation_pct:n($("appreciation").value),units:n($("units").value)||1,lead_type:$("leadType").value,distress_reason:$("distressReason").value,status:$("leadStatus").value,expired:$("expired").checked,preforeclosure:$("preforeclosure").checked,probate:$("probate").checked,remodel:$("remodel").checked,absentee:$("absentee").checked,notes:$("notes").value.trim()};
  try{await api({action:"upsert",lead});await load();closeEditor();msg("Lead saved")}
  catch(e){alert(e.message)}
 };
@@ -198,7 +199,7 @@ $("showMap").onclick=async()=>{
  closeEditor();
 };
 $("csv").onclick=()=>{
- const h=["Lead Type","Score","Address","City","Owner","Value","DOM","Years Owned","Equity %","Appreciation %","Units","Status","Notes"],rows=[h,...leads.map(x=>[x.lead_type||"Property",score(x),x.address,x.city,x.owner_name,x.estimated_value,x.dom,x.years_owned,x.equity_pct,x.appreciation_pct,x.units,x.status,x.notes])];
+ const h=["Lead Type","Distress Reason","Score","Address","City","Owner","Value","DOM","Years Owned","Equity %","Appreciation %","Units","Status","Notes"],rows=[h,...leads.map(x=>[x.lead_type||"Property",x.distress_reason||"",score(x),x.address,x.city,x.owner_name,x.estimated_value,x.dom,x.years_owned,x.equity_pct,x.appreciation_pct,x.units,x.status,x.notes])];
  const csv="\ufeff"+rows.map(r=>r.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(",")).join("\r\n");const b=new Blob([csv],{type:"text/csv"}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download="lead-engine.csv";a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
 };
 ["search","cityFilter","min","max","signalFilter"].forEach(id=>{$(id).oninput=render;$(id).onchange=render});
@@ -207,7 +208,8 @@ document.querySelectorAll(".viewtab").forEach(btn=>btn.onclick=()=>{
  document.querySelectorAll(".viewtab").forEach(b=>b.classList.toggle("active",b===btn));
  render();
 });
-$("preforeclosure").onchange=()=>{if($("preforeclosure").checked)$("leadType").value="Distressed"};
+$("preforeclosure").onchange=()=>{if($("preforeclosure").checked){$("leadType").value="Distressed";if(!$("distressReason").value)$("distressReason").value="Pre-foreclosure / NOD"}};
+$("leadType").onchange=()=>{if($("leadType").value==="Property")$("distressReason").value=""};
 if(accessKey){$("accessKey").value=accessKey;unlock()}
 })();
 </script>
