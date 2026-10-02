@@ -24,6 +24,9 @@ th{position:sticky;top:0;background:#fafbfb;font-size:10px;color:var(--muted);te
 .pill{display:inline-block;font-size:10px;padding:2px 6px;margin:1px 2px 1px 0;background:#eef2f4;border-radius:999px}.editor{display:none;margin-bottom:12px}.editor.on{display:block}
 .editorBody{padding:14px}.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.full{grid-column:1/-1}.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.checks label{font-size:12px}.checks input{width:auto}
 .status{margin-bottom:10px;padding:9px 11px;border-radius:8px;background:#eef6f3;color:#24473f;font-size:12px;display:none}
+.viewtabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.viewtab{background:#fff;color:#26342f;border:1px solid var(--line)}.viewtab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.badge{display:inline-block;font-size:10px;font-weight:800;padding:3px 7px;border-radius:999px;margin-bottom:4px}.badge.property{background:#edf3f1;color:#31554c}.badge.distressed{background:#fdeaea;color:#922f2f}
+tr.distressed-row{background:#fff9f9}tr.distressed-row:hover{background:#fff3f3}
 @media(max-width:950px){.filters{grid-template-columns:1fr 1fr}.cards{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.form{grid-template-columns:1fr}.full{grid-column:auto}}
 </style>
 </head>
@@ -53,6 +56,7 @@ th{position:sticky;top:0;background:#fafbfb;font-size:10px;color:var(--muted);te
 <label>DOM<input id="dom" type="number"></label><label>Years owned<input id="years" type="number"></label>
 <label>Equity %<input id="equity" type="number"></label><label>Appreciation %<input id="appreciation" type="number"></label>
 <label>Units<input id="units" type="number" min="1" max="4" value="1"></label>
+<label>Lead type<select id="leadType"><option>Property</option><option>Distressed</option></select></label>
 <label>Status<select id="leadStatus"><option>New</option><option>Researching</option><option>Contacted</option><option>Follow-up</option><option>Report mailed</option><option>Appointment</option><option>Not a lead</option></select></label>
 <div class="full"><div class="small"><b>Motivation signals</b></div><div class="checks">
 <label><input id="expired" type="checkbox"> Expired/withdrawn</label>
@@ -65,6 +69,11 @@ th{position:sticky;top:0;background:#fafbfb;font-size:10px;color:var(--muted);te
 <div class="full row"><button id="save" type="button">Save</button><button id="showMap" type="button" class="alt">Show on map</button><button id="delete" type="button" class="danger">Delete</button><button id="cancel" type="button" class="alt">Cancel</button></div>
 </div></div></section>
 
+<div class="viewtabs">
+<button class="viewtab active" data-view="All">All properties</button>
+<button class="viewtab" data-view="Property">Regular properties</button>
+<button class="viewtab" data-view="Distressed">Distressed properties</button>
+</div>
 <div class="filters">
 <input id="search" placeholder="Search address or owner">
 <input id="cityFilter" value="Santa Clara">
@@ -75,9 +84,9 @@ th{position:sticky;top:0;background:#fafbfb;font-size:10px;color:var(--muted);te
 
 <div class="cards">
 <div class="card"><div id="total" class="num">0</div><div class="lbl">Visible leads</div></div>
+<div class="card"><div id="regularCount" class="num">0</div><div class="lbl">Regular properties</div></div>
+<div class="card"><div id="distressedCount" class="num">0</div><div class="lbl">Distressed properties</div></div>
 <div class="card"><div id="hot" class="num">0</div><div class="lbl">Hot (70+)</div></div>
-<div class="card"><div id="research" class="num">0</div><div class="lbl">New / researching</div></div>
-<div class="card"><div id="reports" class="num">0</div><div class="lbl">Report candidates</div></div>
 </div>
 
 <div class="grid">
@@ -94,7 +103,7 @@ th{position:sticky;top:0;background:#fafbfb;font-size:10px;color:var(--muted);te
 const API="https://bpzhnbpsoawlpapztssl.supabase.co/functions/v1/lead-api";
 const KEY_STORE="lead-engine-access-key";
 let accessKey=localStorage.getItem(KEY_STORE)||"";
-let leads=[], map=null, markers=[];
+let leads=[], map=null, markers=[], currentView="All";
 
 const $=id=>document.getElementById(id);
 const n=v=>{v=Number(v);return isFinite(v)?v:0};
@@ -131,6 +140,7 @@ async function geocodeLead(x,zoom){
 function filtered(){
  const q=$("search").value.toLowerCase().trim(),city=$("cityFilter").value.toLowerCase().trim(),min=n($("min").value),max=n($("max").value),sf=$("signalFilter").value;
  return leads.filter(x=>{
+  if(currentView!=="All"&&(x.lead_type||"Property")!==currentView)return false;
   if(q&&((x.address+" "+(x.owner_name||"")).toLowerCase().indexOf(q)<0))return false;
   if(city&&(x.city||"").toLowerCase()!==city)return false;
   if(min&&n(x.estimated_value)<min)return false;if(max&&n(x.estimated_value)>max)return false;
@@ -139,17 +149,29 @@ function filtered(){
  }).sort((a,b)=>score(b)-score(a));
 }
 function render(){
- const list=filtered();$("total").textContent=list.length;$("hot").textContent=list.filter(x=>score(x)>=70).length;$("research").textContent=list.filter(x=>x.status==="New"||x.status==="Researching").length;$("reports").textContent=list.filter(x=>score(x)>=50&&x.status!=="Not a lead").length;
+ const list=filtered();
+ $("total").textContent=list.length;
+ $("regularCount").textContent=leads.filter(x=>(x.lead_type||"Property")==="Property").length;
+ $("distressedCount").textContent=leads.filter(x=>(x.lead_type||"Property")==="Distressed").length;
+ $("hot").textContent=list.filter(x=>score(x)>=70).length;
  const tb=$("rows");tb.innerHTML="";
- list.forEach(x=>{const tr=document.createElement("tr");tr.className="lead";const rs=why(x);tr.innerHTML="<td><b>"+score(x)+"</b></td><td><b>"+esc(x.address)+"</b><div class='small'>"+esc(x.city)+" · $"+n(x.estimated_value).toLocaleString()+(x.owner_name?" · "+esc(x.owner_name):"")+"</div></td><td>"+(rs.length?rs.map(v=>"<span class='pill'>"+esc(v)+"</span>").join(""):"<span class='small'>Needs research</span>")+"</td><td>"+esc(x.status)+"</td>";tr.onclick=()=>openEditor(x.id);tb.appendChild(tr)});
+ list.forEach(x=>{
+  const tr=document.createElement("tr");
+  const type=(x.lead_type||"Property");
+  tr.className="lead"+(type==="Distressed"?" distressed-row":"");
+  const rs=why(x);
+  const badge="<span class='badge "+(type==="Distressed"?"distressed":"property")+"'>"+esc(type)+"</span>";
+  tr.innerHTML="<td><b>"+score(x)+"</b></td><td>"+badge+"<br><b>"+esc(x.address)+"</b><div class='small'>"+esc(x.city)+" · $"+n(x.estimated_value).toLocaleString()+(x.owner_name?" · "+esc(x.owner_name):"")+"</div></td><td>"+(rs.length?rs.map(v=>"<span class='pill'>"+esc(v)+"</span>").join(""):"<span class='small'>Needs research</span>")+"</td><td>"+esc(x.status)+"</td>";
+  tr.onclick=()=>openEditor(x.id);tb.appendChild(tr)
+ });
  drawMarkers(list);
 }
 async function load(){
  const d=await api({action:"list"});leads=d.leads||[];render();
 }
 function openEditor(id){
- const x=leads.find(z=>z.id===id)||{id:"",address:"",city:"Santa Clara",owner_name:"",estimated_value:0,dom:0,years_owned:0,equity_pct:0,appreciation_pct:0,units:1,status:"New",notes:""};
- $("leadId").value=x.id||"";$("address").value=x.address;$("city").value=x.city;$("owner").value=x.owner_name||"";$("value").value=x.estimated_value||"";$("dom").value=x.dom||"";$("years").value=x.years_owned||"";$("equity").value=x.equity_pct||"";$("appreciation").value=x.appreciation_pct||"";$("units").value=x.units||1;$("leadStatus").value=x.status||"New";$("notes").value=x.notes||"";
+ const x=leads.find(z=>z.id===id)||{id:"",address:"",city:"Santa Clara",owner_name:"",estimated_value:0,dom:0,years_owned:0,equity_pct:0,appreciation_pct:0,units:1,lead_type:"Property",status:"New",notes:""};
+ $("leadId").value=x.id||"";$("address").value=x.address;$("city").value=x.city;$("owner").value=x.owner_name||"";$("value").value=x.estimated_value||"";$("dom").value=x.dom||"";$("years").value=x.years_owned||"";$("equity").value=x.equity_pct||"";$("appreciation").value=x.appreciation_pct||"";$("units").value=x.units||1;$("leadType").value=x.lead_type||"Property";$("leadStatus").value=x.status||"New";$("notes").value=x.notes||"";
  ["expired","preforeclosure","probate","remodel","absentee"].forEach(k=>$(k).checked=!!x[k]);
  $("delete").style.visibility=x.id?"visible":"hidden";$("editor").className="panel editor on";window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -164,7 +186,7 @@ $("lock").onclick=()=>{localStorage.removeItem(KEY_STORE);location.reload()};
 $("add").onclick=()=>openEditor(null);$("cancel").onclick=closeEditor;
 $("save").onclick=async()=>{
  if(!$("address").value.trim()){alert("Address required");return}
- const lead={id:$("leadId").value||undefined,address:$("address").value.trim(),city:$("city").value.trim()||"Santa Clara",owner_name:$("owner").value.trim(),estimated_value:n($("value").value),dom:n($("dom").value),years_owned:n($("years").value),equity_pct:n($("equity").value),appreciation_pct:n($("appreciation").value),units:n($("units").value)||1,status:$("leadStatus").value,expired:$("expired").checked,preforeclosure:$("preforeclosure").checked,probate:$("probate").checked,remodel:$("remodel").checked,absentee:$("absentee").checked,notes:$("notes").value.trim()};
+ const lead={id:$("leadId").value||undefined,address:$("address").value.trim(),city:$("city").value.trim()||"Santa Clara",owner_name:$("owner").value.trim(),estimated_value:n($("value").value),dom:n($("dom").value),years_owned:n($("years").value),equity_pct:n($("equity").value),appreciation_pct:n($("appreciation").value),units:n($("units").value)||1,lead_type:$("leadType").value,status:$("leadStatus").value,expired:$("expired").checked,preforeclosure:$("preforeclosure").checked,probate:$("probate").checked,remodel:$("remodel").checked,absentee:$("absentee").checked,notes:$("notes").value.trim()};
  try{await api({action:"upsert",lead});await load();closeEditor();msg("Lead saved")}
  catch(e){alert(e.message)}
 };
@@ -176,10 +198,16 @@ $("showMap").onclick=async()=>{
  closeEditor();
 };
 $("csv").onclick=()=>{
- const h=["Score","Address","City","Owner","Value","DOM","Years Owned","Equity %","Appreciation %","Units","Status","Notes"],rows=[h,...leads.map(x=>[score(x),x.address,x.city,x.owner_name,x.estimated_value,x.dom,x.years_owned,x.equity_pct,x.appreciation_pct,x.units,x.status,x.notes])];
+ const h=["Lead Type","Score","Address","City","Owner","Value","DOM","Years Owned","Equity %","Appreciation %","Units","Status","Notes"],rows=[h,...leads.map(x=>[x.lead_type||"Property",score(x),x.address,x.city,x.owner_name,x.estimated_value,x.dom,x.years_owned,x.equity_pct,x.appreciation_pct,x.units,x.status,x.notes])];
  const csv="\ufeff"+rows.map(r=>r.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(",")).join("\r\n");const b=new Blob([csv],{type:"text/csv"}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download="lead-engine.csv";a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
 };
 ["search","cityFilter","min","max","signalFilter"].forEach(id=>{$(id).oninput=render;$(id).onchange=render});
+document.querySelectorAll(".viewtab").forEach(btn=>btn.onclick=()=>{
+ currentView=btn.dataset.view;
+ document.querySelectorAll(".viewtab").forEach(b=>b.classList.toggle("active",b===btn));
+ render();
+});
+$("preforeclosure").onchange=()=>{if($("preforeclosure").checked)$("leadType").value="Distressed"};
 if(accessKey){$("accessKey").value=accessKey;unlock()}
 })();
 </script>
